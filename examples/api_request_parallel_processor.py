@@ -87,7 +87,7 @@ The script is structured as follows:
         - api_endpoint_from_url (extracts API endpoint from request URL)
         - append_to_jsonl (writes to results file)
         - num_tokens_consumed_from_request (bigger function to infer token usage from request)
-        - task_id_generator_function (yields 1, 2, 3, ...)
+        - task_id_generator_function (yields 0, 1, 2, ...)
     - Run main()
 """
 
@@ -132,12 +132,15 @@ async def process_api_requests_from_file(
     # infer API endpoint and construct request header
     api_endpoint = api_endpoint_from_url(request_url)
     request_header = {"Authorization": f"Bearer {api_key}"}
+    # use api-key header for Azure deployments
+    if '/deployments' in request_url:
+        request_header = {"api-key": f"{api_key}"}
 
     # initialize trackers
     queue_of_requests_to_retry = asyncio.Queue()
     task_id_generator = (
         task_id_generator_function()
-    )  # generates integer IDs of 1, 2, 3, ...
+    )  # generates integer IDs of 0, 1, 2, ...
     status_tracker = (
         StatusTracker()
     )  # single instance to track a collection of variables
@@ -366,6 +369,9 @@ class APIRequest:
 def api_endpoint_from_url(request_url):
     """Extract the API endpoint from the request URL."""
     match = re.search("^https://[^/]+/v\\d+/(.+)$", request_url)
+    if match is None:
+        # for Azure OpenAI deployment urls
+        match = re.search(r"^https://[^/]+/openai/deployments/[^/]+/(.+?)(\?|$)", request_url)
     return match[1]
 
 
